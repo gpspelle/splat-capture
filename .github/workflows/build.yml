@@ -1,0 +1,21 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: CaptureKit tests
+        run: swift test --package-path CaptureKit
+      - name: Generate the Xcode project
+        run: brew install xcodegen && xcodegen generate
+      - name: Build the app (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild -project SplatCapture.xcodeproj -scheme SplatCapture -configuration Debug \
+            -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build | tail -n 60

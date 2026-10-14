@@ -1,0 +1,41 @@
+# XcodeGen spec: `xcodegen` turns this into SplatCapture.xcodeproj (which isn't committed).
+name: SplatCapture
+options:
+  bundleIdPrefix: io.github.gpspelle
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+packages:
+  CaptureKit:
+    path: CaptureKit
+targets:
+  SplatCapture:
+    type: application
+    platform: iOS
+    sources:
+      - SplatCapture
+    dependencies:
+      - package: CaptureKit
+    info:
+      path: SplatCapture/Info.plist
+      properties:
+        CFBundleDisplayName: Splat Capture
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        NSCameraUsageDescription: Splat Capture films the object and tracks where the phone is, to build a 3D model of it.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UILaunchScreen: {}
+        UIRequiredDeviceCapabilities: [arkit]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIApplicationSupportsIndirectInputEvents: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.gpspelle.splatcapture
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_PREVIEWS: YES
+    scheme: {}

@@ -1,0 +1,8 @@
+SplatCapture.xcodeproj/
+SplatCapture/Info.plist
+.build/
+CaptureKit/.build/
+CaptureKit/.swiftpm/
+DerivedData/
+xcuserdata/
+.DS_Store
