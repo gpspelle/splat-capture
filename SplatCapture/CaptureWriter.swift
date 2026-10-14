@@ -24,6 +24,13 @@ final class CaptureWriter {
     private(set) var count = 0
     private(set) var duration: Double = 0
     let points = PointAccumulator()
+    /// Frames recorded while tracking wasn't normal.
+    private(set) var limited = 0
+    // for the quality report: sampled every `checkEvery` frames
+    private var positions: [SIMD3<Float>] = []
+    private var forwards: [SIMD3<Float>] = []
+    private var sharpness: [Double] = []
+    private let checkEvery = 3
 
     private let writer: AVAssetWriter
     private let input: AVAssetWriterInput
@@ -93,6 +100,17 @@ final class CaptureWriter {
         if count % pointEvery == 0 {
             collectPoints(frame)
         }
+        if !tracking.isGood {
+            limited += 1
+        }
+        if count % checkEvery == 0 {
+            sharpness.append(Self.sharpness(frame.capturedImage))
+            if tracking.isGood {
+                let m = frame.camera.transform                  // camera looks along its -z axis
+                positions.append(SIMD3(m.columns.3.x, m.columns.3.y, m.columns.3.z))
+                forwards.append(-SIMD3(m.columns.2.x, m.columns.2.y, m.columns.2.z))
+            }
+        }
         count += 1
         duration = time
     }
@@ -108,6 +126,23 @@ final class CaptureWriter {
             let uv = frame.camera.projectPoint(p, orientation: .landscapeRight, viewportSize: size)
             points.add(id: id, position: p, color: Self.color(in: buffer, x: Int(uv.x), y: Int(uv.y)))
         }
+    }
+
+    /// How good the recording looks so far (see QualityReport).
+    func quality() -> QualityReport {
+        QualityReport.make(frames: count, limited: limited, sharpness: sharpness,
+                           positions: positions, forwards: forwards)
+    }
+
+    /// Sharpness of the camera image's brightness (luma) plane.
+    static func sharpness(_ buffer: CVPixelBuffer) -> Double {
+        CVPixelBufferLockBaseAddress(buffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddressOfPlane(buffer, 0) else { return 0 }
+        let w = CVPixelBufferGetWidthOfPlane(buffer, 0), h = CVPixelBufferGetHeightOfPlane(buffer, 0)
+        let row = CVPixelBufferGetBytesPerRowOfPlane(buffer, 0)
+        let luma = base.assumingMemoryBound(to: UInt8.self)
+        return laplacianVariance(width: w, height: h) { x, y in luma[y * row + x] }
     }
 
     /// The colour of one pixel of ARKit's bi-planar YCbCr image (nil outside the image).

@@ -68,9 +68,19 @@ public struct CaptureMeta: Codable, Equatable {
     public var duration: Double
     public var points: Int
     public var lidar: Bool
+    /// What the person called the recording (may be empty).
+    public var name: String?
+    /// Whether focus, exposure and white balance were locked for the whole recording.
+    public var cameraLocked: Bool?
+    /// The phone's own check of the recording (see QualityReport).
+    public var quality: QualityReport?
 
     public init(app: String, device: String, system: String, started: Date, width: Int, height: Int,
-                fps: Double, frames: Int, duration: Double, points: Int, lidar: Bool) {
+                fps: Double, frames: Int, duration: Double, points: Int, lidar: Bool,
+                name: String? = nil, cameraLocked: Bool? = nil, quality: QualityReport? = nil) {
+        self.name = name
+        self.cameraLocked = cameraLocked
+        self.quality = quality
         self.app = app
         self.device = device
         self.system = system

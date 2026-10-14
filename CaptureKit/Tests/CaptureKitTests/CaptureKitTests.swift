@@ -64,3 +64,67 @@ final class PointTests: XCTestCase {
         XCTAssertFalse(TrackingKind.initializing.isGood)
     }
 }
+
+final class QualityTests: XCTestCase {
+    /// Cameras on a circle of radius 1.5 round the origin at three heights, looking at it.
+    func walk(degrees: Double, count: Int = 90) -> ([SIMD3<Float>], [SIMD3<Float>]) {
+        var ps: [SIMD3<Float>] = [], fs: [SIMD3<Float>] = []
+        for i in 0..<count {
+            let a = degrees * Double(i) / Double(count) * .pi / 180
+            let p = SIMD3<Float>(Float(1.5 * cos(a)), [-0.3, 0.2, 0.7][i % 3], Float(1.5 * sin(a)))
+            ps.append(p)
+            fs.append(simd_normalize(SIMD3<Float>(0.1, 0, 0) - p))     // looking near the origin
+        }
+        return (ps, fs)
+    }
+
+    func testFullWalkFindsTheObjectAndNoGap() throws {
+        let (ps, fs) = walk(degrees: 360)
+        let c = try XCTUnwrap(QualityReport.centre(positions: ps, forwards: fs))
+        XCTAssertEqual(c.x, 0.1, accuracy: 0.05)
+        XCTAssertEqual(c.z, 0, accuracy: 0.05)
+        let r = QualityReport.make(frames: 270, limited: 0, sharpness: Array(repeating: 10, count: 90),
+                                   positions: ps, forwards: fs)
+        XCTAssertLessThan(try XCTUnwrap(r.gap), 10)
+        XCTAssertGreaterThan(try XCTUnwrap(r.heights), 15)
+        XCTAssertTrue(r.looksGood, r.warnings.joined(separator: " "))
+    }
+
+    func testHalfWalkWarnsAboutTheMissingSide() throws {
+        let (ps, fs) = walk(degrees: 180)
+        let r = QualityReport.make(frames: 90, limited: 30, sharpness: [10, 10, 10, 1, 1],
+                                   positions: ps, forwards: fs)
+        XCTAssertEqual(try XCTUnwrap(r.gap), 182, accuracy: 4)
+        XCTAssertEqual(r.unsteady, 1.0 / 3, accuracy: 1e-9)
+        XCTAssertEqual(r.blurry, 0.4, accuracy: 1e-9)
+        XCTAssertEqual(r.warnings.count, 3)
+        XCTAssertTrue(r.warnings[0].contains("wasn't filmed"))
+    }
+
+    func testParallelViewsCantLocateTheObject() {
+        let ps = (0..<10).map { SIMD3<Float>(Float($0), 0, 0) }
+        let fs = Array(repeating: SIMD3<Float>(0, 0, -1), count: 10)
+        XCTAssertNil(QualityReport.centre(positions: ps, forwards: fs))
+        let r = QualityReport.make(frames: 10, limited: 0, sharpness: [], positions: ps, forwards: fs)
+        XCTAssertNil(r.gap)
+        XCTAssertTrue(r.warnings[0].contains("Couldn't tell where the object is"))
+    }
+
+    func testLargestGapWrapsAround() {
+        XCTAssertEqual(QualityReport.largestGap([350, 10, 100]), 250)
+        XCTAssertEqual(QualityReport.largestGap([-170, 170]), 340)
+        XCTAssertEqual(QualityReport.largestGap([5]), 360)
+    }
+
+    func testSharpness() {
+        XCTAssertEqual(laplacianVariance(width: 64, height: 64) { _, _ in 120 }, 0)
+        let checker = laplacianVariance(width: 64, height: 64) { x, y in ((x / 4 + y / 4) % 2 == 0) ? 0 : 255 }
+        XCTAssertGreaterThan(checker, 1000)
+    }
+
+    func testSlug() {
+        XCTAssertEqual(captureSlug("Vase, window light!"), "vase-window-light")
+        XCTAssertEqual(captureSlug("  Câmera  "), "camera")
+        XCTAssertEqual(captureSlug("???"), "")
+    }
+}

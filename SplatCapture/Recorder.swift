@@ -14,8 +14,8 @@ final class Recorder: NSObject, ObservableObject, ARSessionDelegate {
     @Published private(set) var points = 0
     @Published private(set) var limitedShare: Double = 0
     @Published var lastError: String?
-    /// Set when a capture has been saved (the zip in Documents).
-    @Published private(set) var lastSaved: URL?
+    /// Set when a capture has been saved: the zip in Documents and the phone's check of it.
+    @Published var saved: SavedCapture?
 
     let session = ARSession()
     static var isSupported: Bool { ARWorldTrackingConfiguration.isSupported }
@@ -23,8 +23,9 @@ final class Recorder: NSObject, ObservableObject, ARSessionDelegate {
     private let queue = DispatchQueue(label: "splat-capture.recorder", qos: .userInitiated)
     // only touched on `queue`
     private var writer: CaptureWriter?
-    private var limitedFrames = 0
     private var started = Date()
+    private var name = ""
+    private var cameraLocked = false
 
     override init() {
         super.init()
@@ -58,25 +59,31 @@ final class Recorder: NSObject, ObservableObject, ARSessionDelegate {
 
     static var hasLiDAR: Bool { ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) }
 
-    func toggle() {
+    func toggle(name: String = "") {
         switch phase {
-        case .idle: record()
+        case .idle: record(name: name)
         case .recording: stop()
         case .saving: break
         }
     }
 
-    private func record() {
+    private func record(name: String) {
         let format = session.configuration?.videoFormat ?? Self.bestFormat()
         let size = format?.imageResolution ?? CGSize(width: 1920, height: 1440)
         let fps = Double(format?.framesPerSecond ?? 30)
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(CaptureLibrary.newName())
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent(CaptureLibrary.newName(trimmed))
         do {
             let w = try CaptureWriter(folder: folder, width: Int(size.width), height: Int(size.height), fps: fps)
             let now = Date()
+            // Same focus, exposure and colour for the whole take: steadier colours, and a lens
+            // that doesn't change (ARKit's positions assume the lens it measured).
+            let locked = Self.lockCamera(true)
             queue.async {
-                self.limitedFrames = 0
                 self.started = now
+                self.name = trimmed
+                self.cameraLocked = locked
                 self.writer = w
             }
             frames = 0
@@ -93,26 +100,57 @@ final class Recorder: NSObject, ObservableObject, ARSessionDelegate {
     private func stop() {
         phase = .saving
         UIApplication.shared.isIdleTimerDisabled = false
+        _ = Self.lockCamera(false)
         queue.async {
             guard let w = self.writer else { return }
             self.writer = nil
-            let started = self.started
+            let started = self.started, name = self.name, locked = self.cameraLocked
+            let quality = w.quality()
             w.finish(meta: { w in
                 CaptureMeta(app: Bundle.main.appVersion, device: Self.deviceModel(),
                             system: UIDevice.current.systemVersion, started: started,
                             width: w.width, height: w.height, fps: w.fps, frames: w.count,
-                            duration: w.duration, points: w.points.export().count, lidar: Self.hasLiDAR)
+                            duration: w.duration, points: w.points.export().count, lidar: Self.hasLiDAR,
+                            name: name, cameraLocked: locked, quality: quality)
             }) { result in
                 let stored = result.flatMap { folder in Result { try CaptureLibrary.store(folder) } }
+                let seconds = w.duration, frames = w.count
                 DispatchQueue.main.async {
                     switch stored {
-                    case .success(let zip): self.lastSaved = zip
+                    case .success(let zip):
+                        self.saved = SavedCapture(url: zip, name: name, seconds: seconds, frames: frames,
+                                                  quality: quality, cameraLocked: locked)
                     case .failure(let error): self.lastError = error.localizedDescription
                     }
                     self.phase = .idle
                 }
             }
         }
+    }
+
+    /// Locks (or releases) focus, exposure and white balance of the camera ARKit uses.
+    /// Returns whether all three could be locked.
+    static func lockCamera(_ lock: Bool) -> Bool {
+        guard let device = ARWorldTrackingConfiguration.configurableCaptureDeviceForPrimaryCamera else { return false }
+        do {
+            try device.lockForConfiguration()
+        } catch {
+            return false
+        }
+        defer { device.unlockForConfiguration() }
+        var all = true
+        if lock {
+            if device.isFocusModeSupported(.locked) { device.focusMode = .locked } else { all = false }
+            if device.isExposureModeSupported(.locked) { device.exposureMode = .locked } else { all = false }
+            if device.isWhiteBalanceModeSupported(.locked) { device.whiteBalanceMode = .locked } else { all = false }
+        } else {
+            if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
+            if device.isExposureModeSupported(.continuousAutoExposure) { device.exposureMode = .continuousAutoExposure }
+            if device.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
+                device.whiteBalanceMode = .continuousAutoWhiteBalance
+            }
+        }
+        return all
     }
 
     // MARK: ARSessionDelegate (called on `queue`)
@@ -122,9 +160,8 @@ final class Recorder: NSObject, ObservableObject, ARSessionDelegate {
         var stats: (Int, Double, Int, Double)?
         if let w = writer {
             w.append(frame, tracking: kind)
-            if !kind.isGood { limitedFrames += 1 }
             if w.count % 10 == 0 {
-                stats = (w.count, w.duration, w.points.count, w.count > 0 ? Double(limitedFrames) / Double(w.count) : 0)
+                stats = (w.count, w.duration, w.points.count, w.count > 0 ? Double(w.limited) / Double(w.count) : 0)
             }
         }
         DispatchQueue.main.async {
@@ -170,6 +207,17 @@ final class Recorder: NSObject, ObservableObject, ARSessionDelegate {
             String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
         }
     }
+}
+
+/// A finished recording, as shown right after it stops.
+struct SavedCapture: Identifiable {
+    let url: URL
+    let name: String
+    let seconds: Double
+    let frames: Int
+    let quality: QualityReport
+    let cameraLocked: Bool
+    var id: URL { url }
 }
 
 extension Bundle {

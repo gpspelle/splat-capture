@@ -6,6 +6,8 @@ struct ContentView: View {
     @StateObject private var recorder = Recorder()
     @StateObject private var library = CaptureLibrary()
     @State private var showLibrary = false
+    @AppStorage("captureName") private var name = ""
+    @FocusState private var naming: Bool
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -27,9 +29,8 @@ struct ContentView: View {
         } message: {
             Text(recorder.lastError ?? "")
         }
-        .onReceive(recorder.$lastSaved) { saved in
+        .onReceive(recorder.$saved) { _ in
             library.refresh()
-            if saved != nil { showLibrary = true }
         }
     }
 
@@ -57,15 +58,28 @@ struct ContentView: View {
                 if recorder.phase == .recording {
                     stats
                 } else if recorder.phase == .idle {
-                    Text("Walk slowly around the object and keep it in view. Go round once low, once at chest height and once from above.")
-                        .font(.footnote)
-                        .multilineTextAlignment(.center)
-                        .padding(12)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    VStack(spacing: 10) {
+                        TextField("What are you filming? (optional)", text: $name)
+                            .textFieldStyle(.roundedBorder)
+                            .submitLabel(.done)
+                            .focused($naming)
+                            .accessibilityLabel("Recording name")
+                        Text("Point at the object, then record: focus and exposure stay as they are when you start. Walk slowly round it, once low, once at chest height and once from above.")
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(12)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                 }
                 recordButton
             }
             .padding()
+        }
+        .sheet(item: $recorder.saved) { saved in
+            QualityView(saved: saved) {
+                try? FileManager.default.removeItem(at: saved.url)
+                library.refresh()
+            }
         }
         .onAppear { recorder.start() }
         .onChange(of: scenePhase) { phase in
@@ -106,7 +120,8 @@ struct ContentView: View {
 
     private var recordButton: some View {
         Button {
-            recorder.toggle()
+            naming = false
+            recorder.toggle(name: name)
         } label: {
             ZStack {
                 Circle().stroke(.white, lineWidth: 4).frame(width: 78, height: 78)
@@ -191,4 +206,72 @@ struct LibraryView: View {
             .onAppear { library.refresh() }
         }
     }
+}
+
+/// Shown right after a recording stops: is it worth sending, or better filmed again?
+struct QualityView: View {
+    let saved: SavedCapture
+    let delete: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var confirmDelete = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    if saved.quality.looksGood {
+                        Label("Looks good to train", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    } else {
+                        ForEach(saved.quality.warnings, id: \.self) { w in
+                            Label(w, systemImage: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+                Section("This recording") {
+                    row("Length", ContentView.clock(saved.seconds))
+                    row("Frames", "\(saved.frames)")
+                    row("Filmed around", saved.quality.gap.map { "\(Int((360 - $0).rounded()))°" } ?? "?")
+                    row("Height range", saved.quality.heights.map { "\(Int($0.rounded()))°" } ?? "?")
+                    row("Unsteady tracking", Self.percent(saved.quality.unsteady))
+                    row("Blurry frames", Self.percent(saved.quality.blurry))
+                    row("Focus and exposure", saved.cameraLocked ? "locked" : "automatic")
+                }
+                Section {
+                    ShareLink(item: saved.url) {
+                        Label("Send to the Mac", systemImage: "square.and.arrow.up")
+                    }
+                    Button(role: .destructive) {
+                        confirmDelete = true
+                    } label: {
+                        Label("Delete and film again", systemImage: "trash")
+                    }
+                }
+            }
+            .navigationTitle(saved.name.isEmpty ? "Recording saved" : saved.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .confirmationDialog("Delete this recording?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) {
+                    delete()
+                    dismiss()
+                }
+            }
+        }
+    }
+
+    private func row(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text(value).foregroundStyle(.secondary).monospacedDigit()
+        }
+    }
+
+    static func percent(_ share: Double) -> String { "\(Int((share * 100).rounded()))%" }
 }

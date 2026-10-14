@@ -1,3 +1,4 @@
+import CaptureKit
 import Foundation
 
 /// The finished captures: one .zip per recording in the app's Documents folder, which is also
@@ -33,11 +34,13 @@ final class CaptureLibrary: ObservableObject {
         refresh()
     }
 
-    static func newName(_ date: Date = Date()) -> String {
+    /// "vase-window-light_2026-10-14_153012", or "capture_2026-10-14_153012" without a name.
+    static func newName(_ name: String = "", date: Date = Date()) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd_HHmmss"
-        return "capture_" + f.string(from: date)
+        let slug = captureSlug(name)
+        return (slug.isEmpty ? "capture" : slug) + "_" + f.string(from: date)
     }
 
     /// Zips a finished capture folder into Documents and removes the folder. The zip holds the

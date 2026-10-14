@@ -13,10 +13,15 @@ recording help come next, once that answer is yes.
 ## What it does
 
 - Shows the camera with the points ARKit is tracking (yellow dots) and whether tracking is good.
+- Locks focus, exposure and white balance when you press record, so the lens and the colours stay
+  the same for the whole take.
 - Records the camera image (HEVC, about 1920 × 1440 at 30 frames a second) and, for every frame,
   the camera position, direction and lens numbers.
 - Saves the 3D points ARKit tracked, with their colours, as a starting point cloud.
-- Packs each recording into one zip you send to your Mac with AirDrop. The format is described in
+- Checks the recording as soon as you stop: how far around the object you went, the range of
+  heights, unsteady tracking and blurry frames, with what to fix if it won't train well.
+- Packs each recording into one zip, named after what you typed, that you send to your Mac with
+  AirDrop. The format is described in
   [docs/capture-format.md](docs/capture-format.md).
 
 ## Try it on your iPhone
@@ -50,13 +55,16 @@ With a free account the app stops opening after 7 days; press ▶ again to reins
 ## Recording and sending a capture
 
 1. Open Splat Capture and wait for **Tracking well** (green). Move the phone a little if it says
-   *Starting*.
-2. Press the red button and walk slowly around the object, keeping it in view: once low, once at
-   chest height and once from above, in one take. The *unsteady* number counts frames where
-   tracking struggled; keep it low by moving slowly.
-3. Press the button again. The capture is saved and the list of captures opens.
-4. Tap **Send** and choose your Mac under AirDrop. It lands in *Downloads* as
-   `capture_<date>.zip`.
+   *Starting*. Type what you're filming (optional), such as `vase window light`.
+2. Point the phone at the object, so it's in focus and well exposed, and press the red button:
+   focus, exposure and white balance stay as they are from then on. Walk slowly around the object,
+   keeping it in view: once low, once at chest height and once from above, in one take. The
+   *unsteady* number counts frames where tracking struggled; keep it low by moving slowly.
+3. Press the button again. The recording is saved and checked: **Looks good to train**, or what to
+   fix (a side not filmed, one height only, unsteady tracking, blurry frames). **Delete and film
+   again** if it needs it.
+4. Tap **Send to the Mac** and choose your Mac under AirDrop. It lands in *Downloads* as
+   `vase-window-light_<date>.zip` (or `capture_<date>.zip` without a name).
 
 The captures are also in the Files app (*On My iPhone › Splat Capture*) and in Finder when the
 phone is plugged in. Swipe left on one to delete it.
@@ -103,10 +111,15 @@ ao vivo e outras ajudas na gravação vêm depois, se a resposta for sim.
 
 - Mostra a câmera com os pontos que o ARKit está acompanhando (pontos amarelos) e se o
   rastreamento está bom.
+- Trava foco, exposição e balanço de branco quando você começa a gravar, para a lente e as cores
+  ficarem iguais durante toda a gravação.
 - Grava a imagem da câmera (HEVC, cerca de 1920 × 1440 a 30 quadros por segundo) e, para cada
   quadro, a posição, a direção e os dados da lente.
 - Salva os pontos 3D que o ARKit acompanhou, com as cores, como nuvem de pontos inicial.
-- Junta cada gravação em um zip que você envia para o Mac por AirDrop. O formato está descrito em
+- Confere a gravação assim que você para: quanto você deu a volta no objeto, a variação de
+  alturas, rastreamento instável e quadros borrados, com o que corrigir se não for treinar bem.
+- Junta cada gravação em um zip, com o nome que você digitou, que você envia para o Mac por
+  AirDrop. O formato está descrito em
   [docs/capture-format.md](docs/capture-format.md) (em inglês).
 
 ### Testar no seu iPhone
@@ -140,13 +153,17 @@ Depois de `git pull`, rode `xcodegen` de novo antes de compilar.
 ### Gravar e enviar uma captura
 
 1. Abra o Splat Capture e espere aparecer **Tracking well** (verde). Mexa um pouco o celular se
-   aparecer *Starting*.
-2. Aperte o botão vermelho e ande devagar ao redor do objeto, sem perdê-lo de vista: uma volta
-   baixa, uma na altura do peito e uma de cima, numa gravação só. O número *unsteady* conta os
-   quadros em que o rastreamento teve dificuldade; mantenha-o baixo andando devagar.
-3. Aperte o botão de novo. A captura é salva e a lista de capturas abre.
-4. Toque em **Send** e escolha seu Mac no AirDrop. Ela chega em *Downloads* como
-   `capture_<data>.zip`.
+   aparecer *Starting*. Digite o que você vai filmar (opcional), como `vaso janela`.
+2. Aponte o celular para o objeto, para ele ficar em foco e bem exposto, e aperte o botão
+   vermelho: foco, exposição e balanço de branco ficam como estão a partir daí. Ande devagar ao
+   redor do objeto, sem perdê-lo de vista: uma volta baixa, uma na altura do peito e uma de cima,
+   numa gravação só. O número *unsteady* conta os quadros em que o rastreamento teve dificuldade;
+   mantenha-o baixo andando devagar.
+3. Aperte o botão de novo. A gravação é salva e conferida: **Looks good to train**, ou o que
+   corrigir (um lado não filmado, uma altura só, rastreamento instável, quadros borrados). Use
+   **Delete and film again** se precisar.
+4. Toque em **Send to the Mac** e escolha seu Mac no AirDrop. Ela chega em *Downloads* como
+   `vaso-janela_<data>.zip` (ou `capture_<data>.zip` sem nome).
 
 As capturas também ficam no app Arquivos (*No Meu iPhone › Splat Capture*) e no Finder quando o
 celular está conectado. Deslize para a esquerda para apagar uma.

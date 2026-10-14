@@ -3,7 +3,7 @@
 What Splat Capture writes and Splat Studio reads. One recording is one zip:
 
 ```
-capture_2026-10-14_153012.zip
+capture_2026-10-14_153012.zip        (or <name>_2026-10-14_153012.zip)
 └── capture_2026-10-14_153012/
     ├── video.mov       the camera image, exactly as ARKit saw it
     ├── frames.jsonl    one line per video frame: where the camera was
@@ -74,9 +74,23 @@ starting point cloud for training.
   "app": "0.1.0", "device": "iPhone15,2", "system": "17.5",
   "started": "2026-10-14T13:30:12Z",
   "width": 1920, "height": 1440, "fps": 30,
-  "frames": 1834, "duration": 61.1, "points": 5210, "lidar": true
+  "frames": 1834, "duration": 61.1, "points": 5210, "lidar": true,
+  "name": "vase window light", "cameraLocked": true,
+  "quality": {"unsteady": 0.03, "blurry": 0.05, "gap": 12.5, "heights": 31.0}
 }
 ```
+
+`name`, `cameraLocked` and `quality` may be missing (older captures):
+
+- `name`: what the person typed before recording (may be empty). The zip and folder are named
+  after it too: `vase-window-light_2026-10-14_153012`.
+- `cameraLocked`: focus, exposure and white balance were locked for the whole recording, so the
+  lens numbers barely change and colours stay steady.
+- `quality`: the phone's own check, made when the recording stopped. `unsteady` is the share of
+  frames where tracking wasn't normal, `blurry` the share of sampled frames under half the median
+  sharpness, `gap` the largest part of the circle around the object with no camera (degrees;
+  null when the object couldn't be located) and `heights` the degrees between low and high
+  views. The object is located as the point closest to every camera's line of sight.
 
 `format` and `version` identify the package; a reader should refuse a `version` it doesn't
 know. A later version may add files (depth maps, for example) and keys.
